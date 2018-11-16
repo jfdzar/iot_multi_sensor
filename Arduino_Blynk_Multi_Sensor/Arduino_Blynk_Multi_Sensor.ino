@@ -11,11 +11,22 @@
                                 http://twitter.com/blynk_app
 
  *************************************************************
-  Send the values of a BME280 over the Blynk Interface
+ IoT Multi Sensor Project
 
+ Values from different sensors are read and sent over the Blynk API
+ Alerts are also generated depending on the Sensor Values
+ Following Sensors are implemented at the moment:
+ * Temperature from BME280
+ * Humiditz from BME280
+ * Air Pressure from BME280
+ * Water Leak Detector - 1
  *************************************************************/
 /* Comment this out to disable prints and save space */
 #define BLYNK_PRINT Serial
+
+#define WATER_SENSOR_PIN 16
+#define BUZZER_PIN 16
+#define TIMER_INTERVAL 15000L
 
 #include <ESP8266WiFi.h>
 #include <BlynkSimpleEsp8266.h>
@@ -28,15 +39,12 @@ float h, t, p;
 
 bool first_time = true;
 
-// You should get Auth Token in the Blynk App.
-// Go to the Project Settings (nut icon).
+//Read the Tokens and WiFi Credentials from constants define in pass.h
 const char auth[] = TOKEN;
-// Your WiFi credentials.
 const char ssid[] = WIFI_SSID;
 const char pass[] = WIFI_PASS;
 
 BlynkTimer timer;
-
 WidgetLED led(V0);
 
 void getWeather() {
@@ -48,18 +56,14 @@ void getWeather() {
 }
 
 bool detectWater(){
-  int SensorPin = 14;
   int SensorState = 0;
-
-  SensorState = digitalRead(SensorPin);
-
+  SensorState = digitalRead(WATER_SENSOR_PIN);
   if (SensorState == 1){
     return true;
   }
   else{
     return false;
   }
-  
 }
 
 // This function sends Arduino's up time every second to Virtual Pin (5).
@@ -88,7 +92,9 @@ void myTimerEvent()
     
   }
 
-  
+  //tone(BUZZER_PIN, 1000);
+  //delay(1000);
+  //noTone(BUZZER_PIN);
 }
 
 void setup()
@@ -107,7 +113,8 @@ void setup()
   //Blynk.begin(auth, ssid, pass, IPAddress(192,168,1,100), 8080);
 
   // Setup a function to be called every second
-  timer.setInterval(15000L, myTimerEvent);
+  timer.setInterval(TIMER_INTERVAL, myTimerEvent);
+  pinMode(BUZZER_PIN, OUTPUT);
 }
 
 void loop()
