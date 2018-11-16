@@ -25,8 +25,8 @@
 #define BLYNK_PRINT Serial
 
 #define WATER_SENSOR_PIN 16
-#define BUZZER_PIN 16
-#define TIMER_INTERVAL 15000L
+#define BUZZER_PIN 15
+#define TIMER_INTERVAL 30000L //Time in ms
 
 #include <ESP8266WiFi.h>
 #include <BlynkSimpleEsp8266.h>
@@ -36,8 +36,8 @@
 //Global Variables for BME280 Measurements
 BME280_I2C bme(0x76); // I2C
 float h, t, p;
-
 bool first_time = true;
+int init_timer = millis();
 
 //Read the Tokens and WiFi Credentials from constants define in pass.h
 const char auth[] = TOKEN;
@@ -78,6 +78,11 @@ void myTimerEvent()
   Blynk.virtualWrite(V4, h);
   Blynk.virtualWrite(V3, p);
 
+  Serial.print(millis() - init_timer);
+  Serial.print("\t");
+  Serial.print(t);
+  Serial.print("\n");
+
   if (detectWater()){
     led.off();
     Serial.println("No Water");
@@ -88,37 +93,36 @@ void myTimerEvent()
     if(first_time){
       Blynk.email("Water Alarm", "Hola Juani, hemos detectado agua en tu baño");
       first_time = false;
+      tone(BUZZER_PIN, 500);
+      delay(1000);
+      noTone(BUZZER_PIN);
     }
-    
   }
-
-  //tone(BUZZER_PIN, 1000);
-  //delay(1000);
-  //noTone(BUZZER_PIN);
+  
+  
 }
 
 void setup()
 {
   // Debug console
   Serial.begin(9600);
-
   if (!bme.begin()) {
     Serial.println("Could not find a valid BME280 sensor, check wiring!");
     while (1);
   }
   
   Blynk.begin(auth, ssid, pass);
-  // You can also specify server:
-  //Blynk.begin(auth, ssid, pass, "blynk-cloud.com", 80);
-  //Blynk.begin(auth, ssid, pass, IPAddress(192,168,1,100), 8080);
-
-  // Setup a function to be called every second
+  // Setup a function to be called TIMER_INTERVAL 
   timer.setInterval(TIMER_INTERVAL, myTimerEvent);
   pinMode(BUZZER_PIN, OUTPUT);
+
+  //WiFi.mode(WIFI_STA);
+  //wifi_set_sleep_type(LIGHT_SLEEP_T);
 }
 
 void loop()
 {
   Blynk.run();
   timer.run(); // Initiates BlynkTimer
+  
 }
