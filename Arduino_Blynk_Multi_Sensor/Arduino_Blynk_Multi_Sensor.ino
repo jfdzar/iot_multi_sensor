@@ -22,29 +22,30 @@
  * Water Leak Detector - 1
  *************************************************************/
 /* Comment this out to disable prints and save space */
-#define BLYNK_PRINT Serial
+//#define BLYNK_PRINT Serial
 
 #define WATER_SENSOR_PIN 16
 #define BUZZER_PIN 15
 #define TIMER_INTERVAL 30000L //Time in ms
+#define ALARM_LENGTH 1000 //in ms Delay will be 10x 
 
 #include <ESP8266WiFi.h>
 #include <BlynkSimpleEsp8266.h>
 #include "cactus_io_BME280_I2C.h"
-#include "pass.h"
+#include "WiFiSettings.h"
 
 //Global Variables for BME280 Measurements
 BME280_I2C bme(0x76); // I2C
 float h, t, p;
-bool first_time = true;
-int init_timer = millis();
+bool water_alarm = false;
 
 //Read the Tokens and WiFi Credentials from constants define in pass.h
 const char auth[] = TOKEN;
 const char ssid[] = WIFI_SSID;
 const char pass[] = WIFI_PASS;
 
-BlynkTimer timer;
+BlynkTimer timer_sensors;
+
 WidgetLED led(V0);
 
 void getWeather() {
@@ -66,63 +67,62 @@ bool detectWater(){
   }
 }
 
-// This function sends Arduino's up time every second to Virtual Pin (5).
-// In the app, Widget's reading frequency should be set to PUSH. This means
-// that you define how often to send data to Blynk App.
-void myTimerEvent()
-{
+void sendAlarmMail(){
+  if(!water_alarm){
+      Blynk.email("Water Alarm", "Hola Juani, hemos detectado agua en tu baño");
+      water_alarm = true;
+   }
+}
+
+void readAndSendSensors(){
+  // In the app, Widget's reading frequency should be set to PUSH. This means
+  // that you define how often to send data to Blynk App.
   // You can send any value at any time.
   // Please don't send more that 10 values per second.
+  //Serial.println("Reading Sensors");
   getWeather();
   Blynk.virtualWrite(V5, t);
   Blynk.virtualWrite(V4, h);
   Blynk.virtualWrite(V3, p);
 
-  Serial.print(millis() - init_timer);
-  Serial.print("\t");
-  Serial.print(t);
-  Serial.print("\n");
-
   if (detectWater()){
     led.off();
-    Serial.println("No Water");
   }
   else{
     led.on();
-    Serial.println("ALARM");
-    if(first_time){
-      Blynk.email("Water Alarm", "Hola Juani, hemos detectado agua en tu baño");
-      first_time = false;
-      tone(BUZZER_PIN, 500);
-      delay(1000);
-      noTone(BUZZER_PIN);
-    }
+    sendAlarmMail();
   }
-  
-  
 }
 
-void setup()
-{
-  // Debug console
-  Serial.begin(9600);
+void initBMESensor(){
   if (!bme.begin()) {
     Serial.println("Could not find a valid BME280 sensor, check wiring!");
     while (1);
   }
-  
-  Blynk.begin(auth, ssid, pass);
-  // Setup a function to be called TIMER_INTERVAL 
-  timer.setInterval(TIMER_INTERVAL, myTimerEvent);
-  pinMode(BUZZER_PIN, OUTPUT);
-
-  //WiFi.mode(WIFI_STA);
-  //wifi_set_sleep_type(LIGHT_SLEEP_T);
 }
 
-void loop()
-{
+void setup(){
+  // Debug console
+  Serial.begin(9600);
+  //Initialize Temperatur, Humidity, Pressure Sensor
+  initBMESensor();
+  //Connect to the Wifi Network
+  Blynk.begin(auth, ssid, pass);
+  // Setup a function to be called TIMER_INTERVAL 
+  timer_sensors.setInterval(TIMER_INTERVAL, readAndSendSensors);
+  //Define Buzzer Pin as an Output
+  pinMode(BUZZER_PIN, OUTPUT);
+}
+
+void loop(){
   Blynk.run();
-  timer.run(); // Initiates BlynkTimer
-  
+  timer_sensors.run();
+
+  if (water_alarm){
+    //Serial.println("ALARM!");
+    tone(BUZZER_PIN,500);
+    delay(ALARM_LENGTH);
+  }
+  noTone(BUZZER_PIN);
+  delay(ALARM_LENGTH*10);
 }
